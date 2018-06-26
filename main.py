@@ -1,53 +1,81 @@
 import gym
 import torch
+import argparse
+import numpy as np
+import torch.optim as optim
 from model import Actor, Critic
 from utils import get_action
 from collections import deque
-from trpo import train_actor, train_critic
-
-# you can choose other environments.
-# possible environments: Ant-v2, HalfCheetah-v2, Hopper-v2, Humanoid-v2,
-# HumanoidStandup-v2, InvertedPendulum-v2, Reacher-v2, Swimmer-v2, Walker2D-v2
-env = gym.make("Walker2d-v2")
-
-num_inputs = env.observation_space.shape[0]
-num_actions = env.action_space.shape[0]
-
-print('state size:', num_inputs)
-print('action size:', num_actions)
-
-actor = Actor(num_inputs, num_actions)
-critic = Critic(num_inputs)
+from hparams import HyperParams as hp
 
 
-for iter in range(1000):
-    memory = deque()
+parser = argparse.ArgumentParser()
+parser.add_argument('--algorithm', type=str, default='NPG',
+                    help='select one of algorithms among Vanilla_PG, NPG, TPRO')
+parser.add_argument('--env', type=str, default="Walker2d-v2",
+                    help='name of Mujoco environement')
+parser.add_argument('--render', default=False)
+args = parser.parse_args()
 
-    score = 0
-    steps = 0
+if args.algorithm == "PG":
+    from vanila_pg import train_model
+elif args.algorithm == "NPG":
+    from npg import train_model
 
-    while steps < 15000:
-        state = env.reset()
 
-        for _ in range(10000):
-            env.render()
-            steps += 1
-            mu, std = actor(torch.Tensor(state))
-            action = get_action(mu, std)
-            next_state, reward, done, _ = env.step(action)
+if __name__=="__main__":
+    # you can choose other environments.
+    # possible environments: Ant-v2, HalfCheetah-v2, Hopper-v2, Humanoid-v2,
+    # HumanoidStandup-v2, InvertedPendulum-v2, Reacher-v2, Swimmer-v2, Walker2d-v2
+    env = gym.make(args.env)
+    env.seed(543)
+    torch.manual_seed(543)
 
-            if done:
-                mask = 0
-            else:
-                mask = 1
+    num_inputs = env.observation_space.shape[0]
+    num_actions = env.action_space.shape[0]
 
-            memory.append([state, action, reward, mask])
+    print('state size:', num_inputs)
+    print('action size:', num_actions)
 
-            score += reward
-            state = next_state
+    actor = Actor(num_inputs, num_actions)
+    critic = Critic(num_inputs)
 
-            if done:
-                break
+    actor_optim = optim.Adam(actor.parameters(), lr=hp.actor_lr)
+    critic_optim = optim.Adam(critic.parameters(), lr=hp.critic_lr,
+                              weight_decay=hp.l2_rate)
 
-    train_actor()
-    train_critic()
+    episodes = 0
+    for iter in range(15000):
+        actor.eval(), critic.eval()
+        memory = deque()
+
+        steps = 0
+        scores = []
+        while steps < 15000:
+            episodes += 1
+            state = env.reset()
+            score = 0
+            for _ in range(10000):
+                # env.render()
+                steps += 1
+                mu, std, _ = actor(torch.Tensor(state).unsqueeze(0))
+                action = get_action(mu, std)[0]
+                next_state, reward, done, _ = env.step(action)
+
+                if done:
+                    mask = 0
+                else:
+                    mask = 1
+
+                memory.append([state, action, reward, mask])
+
+                score += reward
+                state = next_state
+
+                if done:
+                    break
+            scores.append(score)
+        score_avg = np.mean(scores)
+        print('{} episode score is {:.2f}'.format(episodes, score_avg))
+        actor.train(), critic.train()
+        train_model(actor, critic, memory, actor_optim, critic_optim)
