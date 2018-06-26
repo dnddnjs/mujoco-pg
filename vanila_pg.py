@@ -34,6 +34,7 @@ def surrogate_loss(actor, advants, states, old_policy, actions):
     mu, std, logstd = actor(torch.Tensor(states))
     new_policy = log_density(torch.Tensor(actions), mu, std, logstd)
     advants = advants.unsqueeze(1)
+
     surrogate = advants * torch.exp(new_policy - old_policy)
     surrogate = surrogate.mean()
     return - surrogate
@@ -56,7 +57,7 @@ def train_critic(critic, states, returns, critic_optim):
 
 
 def train_actor(actor, advants, states, old_policy, actions, actor_optim):
-    loss = surrogate_loss(actor, advants, states, old_policy, actions)
+    loss = surrogate_loss(actor, advants, states, old_policy.detach(), actions)
     actor_optim.zero_grad()
     loss.backward()
     actor_optim.step()
