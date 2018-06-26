@@ -7,7 +7,7 @@ from hparams import HyperParams as hp
 class Actor(nn.Module):
     def __init__(self, num_inputs, num_outputs):
         super(Actor, self).__init__()
-        self.bn0 = nn.BatchNorm1d(num_inputs)
+        # self.bn0 = nn.BatchNorm1d(num_inputs)
         self.fc1 = nn.Linear(num_inputs, hp.hidden)
         self.fc2 = nn.Linear(hp.hidden, hp.hidden)
         self.fc3 = nn.Linear(hp.hidden, num_outputs)
@@ -15,7 +15,7 @@ class Actor(nn.Module):
         self.fc3.bias.data.mul_(0.0)
 
     def forward(self, x):
-        x = self.bn0(x)
+        # x = self.bn0(x)
         x = F.tanh(self.fc1(x))
         x = F.tanh(self.fc2(x))
         mu = self.fc3(x)
@@ -27,7 +27,7 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     def __init__(self, num_inputs):
         super(Critic, self).__init__()
-        self.bn0 = nn.BatchNorm1d(num_inputs)
+        # self.bn0 = nn.BatchNorm1d(num_inputs)
         self.fc1 = nn.Linear(num_inputs, hp.hidden)
         self.fc2 = nn.Linear(hp.hidden, hp.hidden)
         self.fc3 = nn.Linear(hp.hidden, 1)
@@ -35,7 +35,7 @@ class Critic(nn.Module):
         self.fc3.bias.data.mul_(0.0)
 
     def forward(self, x):
-        x = self.bn0(x)
+        # x = self.bn0(x)
         x = F.tanh(self.fc1(x))
         x = F.tanh(self.fc2(x))
         v = self.fc3(x)

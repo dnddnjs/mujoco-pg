@@ -11,18 +11,18 @@ def get_gae(rewards, masks, values):
     advants = torch.zeros_like(rewards)
 
     running_returns = 0
-    running_tderror = 0
+    previous_value = 0
     running_advants = 0
 
     for t in reversed(range(0, len(rewards))):
         running_returns = rewards[t] + hp.gamma * running_returns * masks[t]
-        running_tderror = rewards[t] + hp.gamma * running_tderror * masks[t] - \
+        running_tderror = rewards[t] + hp.gamma * previous_value * masks[t] - \
                     values.data[t]
         running_advants = running_tderror + hp.gamma * hp.lamda * \
                           running_advants * masks[t]
 
         returns[t] = running_returns
-        tderror[t] = running_tderror
+        previous_value = values.data[t]
         advants[t] = running_advants
 
     advants = (advants - advants.mean()) / advants.std()
@@ -39,20 +39,26 @@ def surrogate_loss(actor, advants, states, old_policy, actions):
     return surrogate
 
 
-def train_critic(critic, states, returns, critic_optim):
+def train_critic(critic, states, returns, advants, critic_optim):
     criterion = torch.nn.MSELoss()
     n = len(states)
-    for i in range(3):
-        batch_index = np.random.randint(0, n, size=hp.batch_size)
-        batch_index = torch.LongTensor(batch_index)
-        inputs = torch.Tensor(states)[batch_index]
-        targets = returns.unsqueeze(1)[batch_index]
+    arr = np.arange(n)
 
-        values = critic(inputs)
-        loss = criterion(values, targets)
-        critic_optim.zero_grad()
-        loss.backward()
-        critic_optim.step()
+    for epoch in range(5):
+        np.random.shuffle(arr)
+
+        for i in range(n // hp.batch_size):
+            batch_index = arr[hp.batch_size * i: hp.batch_size * (i + 1)]
+            batch_index = torch.LongTensor(batch_index)
+            inputs = torch.Tensor(states)[batch_index]
+            target1 = returns.unsqueeze(1)[batch_index]
+            target2 = advants.unsqueeze(1)[batch_index]
+
+            values = critic(inputs)
+            loss = criterion(values, target1 + target2)
+            critic_optim.zero_grad()
+            loss.backward()
+            critic_optim.step()
 
 
 def fisher_vector_product(actor, states, p):
@@ -88,7 +94,7 @@ def conjugate_gradient(actor, states, b, nsteps, residual_tol=1e-10):
     return x
 
 
-def train_model(actor, critic, memory, critic_optim):
+def train_model(actor, critic, memory, actor_optim, critic_optim):
     memory = np.array(memory)
     states = np.vstack(memory[:, 0])
     actions = list(memory[:, 1])
@@ -102,7 +108,7 @@ def train_model(actor, critic, memory, critic_optim):
 
     # ----------------------------
     # step 2: train critic several steps with respect to returns
-    train_critic(critic, states, returns, critic_optim)
+    train_critic(critic, states, returns, advants, critic_optim)
 
     # ----------------------------
     # step 3: get gradient of loss and hessian of kl
@@ -120,8 +126,6 @@ def train_model(actor, critic, memory, critic_optim):
     shs = 0.5 * (step_dir * fisher_vector_product(actor, states, step_dir)
                  ).sum(0, keepdim=True)
     step_size = 1 / torch.sqrt(shs / hp.max_kl)[0]
-
-    line_search()
     new_params = params + step_size * step_dir
     update_model(actor, new_params)
 

@@ -39,20 +39,26 @@ def surrogate_loss(actor, advants, states, old_policy, actions):
     return surrogate
 
 
-def train_critic(critic, states, returns, critic_optim):
+def train_critic(critic, states, returns, advants, critic_optim):
     criterion = torch.nn.MSELoss()
     n = len(states)
-    for i in range(3):
-        batch_index = np.random.randint(0, n, size=hp.batch_size)
-        batch_index = torch.LongTensor(batch_index)
-        inputs = torch.Tensor(states)[batch_index]
-        targets = returns.unsqueeze(1)[batch_index]
+    arr = np.arange(n)
 
-        values = critic(inputs)
-        loss = criterion(values, targets)
-        critic_optim.zero_grad()
-        loss.backward()
-        critic_optim.step()
+    for epoch in range(5):
+        np.random.shuffle(arr)
+
+        for i in range(n // hp.batch_size):
+            batch_index = arr[hp.batch_size * i: hp.batch_size * (i + 1)]
+            batch_index = torch.LongTensor(batch_index)
+            inputs = torch.Tensor(states)[batch_index]
+            target1 = returns.unsqueeze(1)[batch_index]
+            target2 = advants.unsqueeze(1)[batch_index]
+
+            values = critic(inputs)
+            loss = criterion(values, target1 + target2)
+            critic_optim.zero_grad()
+            loss.backward()
+            critic_optim.step()
 
 
 def fisher_vector_product(actor, states, p):
@@ -102,7 +108,7 @@ def train_model(actor, critic, memory, actor_optim, critic_optim):
 
     # ----------------------------
     # step 2: train critic several steps with respect to returns
-    train_critic(critic, states, returns, critic_optim)
+    train_critic(critic, states, returns, advants, critic_optim)
 
     # ----------------------------
     # step 3: get gradient of loss and hessian of kl

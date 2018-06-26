@@ -6,6 +6,7 @@ import torch.optim as optim
 from model import Actor, Critic
 from utils import get_action
 from collections import deque
+from running_state import ZFilter
 from hparams import HyperParams as hp
 
 
@@ -21,6 +22,8 @@ if args.algorithm == "PG":
     from vanila_pg import train_model
 elif args.algorithm == "NPG":
     from npg import train_model
+elif args.algorithm == "TRPO":
+    from trpo import train_model
 
 
 if __name__=="__main__":
@@ -28,8 +31,8 @@ if __name__=="__main__":
     # possible environments: Ant-v2, HalfCheetah-v2, Hopper-v2, Humanoid-v2,
     # HumanoidStandup-v2, InvertedPendulum-v2, Reacher-v2, Swimmer-v2, Walker2d-v2
     env = gym.make(args.env)
-    env.seed(543)
-    torch.manual_seed(543)
+    env.seed(500)
+    torch.manual_seed(500)
 
     num_inputs = env.observation_space.shape[0]
     num_actions = env.action_space.shape[0]
@@ -44,6 +47,7 @@ if __name__=="__main__":
     critic_optim = optim.Adam(critic.parameters(), lr=hp.critic_lr,
                               weight_decay=hp.l2_rate)
 
+    running_state = ZFilter((num_inputs,), clip=5)
     episodes = 0
     for iter in range(15000):
         actor.eval(), critic.eval()
@@ -51,16 +55,20 @@ if __name__=="__main__":
 
         steps = 0
         scores = []
-        while steps < 15000:
+        while steps < 1024:
             episodes += 1
             state = env.reset()
+            state = running_state(state)
             score = 0
             for _ in range(10000):
+                if episodes % 30 == 0:
+                    env.render()
                 # env.render()
                 steps += 1
                 mu, std, _ = actor(torch.Tensor(state).unsqueeze(0))
                 action = get_action(mu, std)[0]
                 next_state, reward, done, _ = env.step(action)
+                next_state = running_state(next_state)
 
                 if done:
                     mask = 0
