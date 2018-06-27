@@ -13,7 +13,7 @@ from hparams import HyperParams as hp
 parser = argparse.ArgumentParser()
 parser.add_argument('--algorithm', type=str, default='TRPO',
                     help='select one of algorithms among Vanilla_PG, NPG, TPRO')
-parser.add_argument('--env', type=str, default="Walker2d-v2",
+parser.add_argument('--env', type=str, default="Hopper-v2",
                     help='name of Mujoco environement')
 parser.add_argument('--render', default=False)
 args = parser.parse_args()
@@ -55,15 +55,15 @@ if __name__=="__main__":
 
         steps = 0
         scores = []
-        while steps < 1024:
+        while steps < 10000:
             episodes += 1
             state = env.reset()
             state = running_state(state)
             score = 0
             for _ in range(10000):
-                if episodes % 30 == 0:
-                    env.render()
-                # env.render()
+                # if episodes % 30 == 0:
+                #     env.render()
+
                 steps += 1
                 mu, std, _ = actor(torch.Tensor(state).unsqueeze(0))
                 action = get_action(mu, std)[0]

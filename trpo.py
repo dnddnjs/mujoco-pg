@@ -134,8 +134,8 @@ def train_model(actor, critic, memory, actor_optim, critic_optim):
     # step 5: do backtracking line search for n times
     old_actor = Actor(actor.num_inputs, actor.num_outputs)
     update_model(old_actor, params)
-    old_mu, old_std, old_logstd = old_actor(torch.Tensor(states))
-    old_policy = log_density(torch.Tensor(actions), old_mu, old_std, old_logstd)
+    expected_improve = (loss_grad * full_step).sum(0, keepdim=True)
+    expected_improve = expected_improve.data.numpy()
 
     flag = False
     fraction = 1.0
@@ -146,13 +146,17 @@ def train_model(actor, critic, memory, actor_optim, critic_optim):
                                   actions)
         new_loss = new_loss.data.numpy()
         loss_improve = new_loss - loss
+        expected_improve *= fraction
         kl = kl_divergence(new_actor=actor, old_actor=old_actor, states=states)
         kl = kl.mean()
 
-        if kl < hp.max_kl * 1.5 and loss_improve > 0:
+        print('kl: {:.4f}  loss improve: {:.4f}  expected improve: {:.4f}  '
+              'number of line search: {}'
+              .format(kl.data.numpy(), loss_improve, expected_improve[0], i))
+
+        # see https: // en.wikipedia.org / wiki / Backtracking_line_search
+        if kl < hp.max_kl and (loss_improve / expected_improve) > 0.5:
             flag = True
-            print('kl: {:.4f}  loss improve: {:.4f}  number of line search: {}'
-                .format(kl.data.numpy(), loss_improve, i))
             break
 
         fraction *= 0.5
