@@ -1,6 +1,7 @@
 import numpy as np
 from utils import *
 from hparams import HyperParams as hp
+from model import Actor
 
 
 def get_gae(rewards, masks, values):
@@ -63,7 +64,7 @@ def train_critic(critic, states, returns, advants, critic_optim):
 
 def fisher_vector_product(actor, states, p):
     p.detach()
-    kl = kl_divergence(actor, states)
+    kl = kl_divergence(new_actor=actor, old_actor=actor, states=states)
     kl = kl.mean()
     kl_grad = torch.autograd.grad(kl, actor.parameters(), create_graph=True)
     kl_grad = flat_grad(kl_grad)  # check kl_grad == 0
@@ -119,14 +120,47 @@ def train_model(actor, critic, memory, actor_optim, critic_optim):
     loss_grad = torch.autograd.grad(loss, actor.parameters())
     loss_grad = flat_grad(loss_grad)
     step_dir = conjugate_gradient(actor, states, loss_grad.data, nsteps=10)
+    loss = loss.data.numpy()
 
     # ----------------------------
-    # step 4: get step direction and step size and update actor
+    # step 4: get step direction and step size and full step
     params = flat_params(actor)
     shs = 0.5 * (step_dir * fisher_vector_product(actor, states, step_dir)
                  ).sum(0, keepdim=True)
     step_size = 1 / torch.sqrt(shs / hp.max_kl)[0]
-    new_params = params + step_size * step_dir
-    update_model(actor, new_params)
+    full_step = step_size * step_dir
+
+    # ----------------------------
+    # step 5: do backtracking line search for n times
+    old_actor = Actor(actor.num_inputs, actor.num_outputs)
+    update_model(old_actor, params)
+    old_mu, old_std, old_logstd = old_actor(torch.Tensor(states))
+    old_policy = log_density(torch.Tensor(actions), old_mu, old_std, old_logstd)
+
+    flag = False
+    fraction = 1.0
+    for i in range(10):
+        new_params = params + fraction * full_step
+        update_model(actor, new_params)
+        new_loss = surrogate_loss(actor, advants, states, old_policy.detach(),
+                                  actions)
+        new_loss = new_loss.data.numpy()
+        loss_improve = new_loss - loss
+        kl = kl_divergence(new_actor=actor, old_actor=old_actor, states=states)
+        kl = kl.mean()
+
+        if kl < hp.max_kl * 1.5 and loss_improve > 0:
+            flag = True
+            print('kl: {:.4f}  loss improve: {:.4f}  number of line search: {}'
+                .format(kl.data.numpy(), loss_improve, i))
+            break
+
+        fraction *= 0.5
+
+    if not flag:
+        params = flat_params(old_actor)
+        update_model(actor, params)
+        print('policy update does not impove the surrogate')
+
 
 

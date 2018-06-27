@@ -6,6 +6,8 @@ from hparams import HyperParams as hp
 
 class Actor(nn.Module):
     def __init__(self, num_inputs, num_outputs):
+        self.num_inputs = num_inputs
+        self.num_outputs = num_outputs
         super(Actor, self).__init__()
         # self.bn0 = nn.BatchNorm1d(num_inputs)
         self.fc1 = nn.Linear(num_inputs, hp.hidden)

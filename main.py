@@ -11,7 +11,7 @@ from hparams import HyperParams as hp
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--algorithm', type=str, default='NPG',
+parser.add_argument('--algorithm', type=str, default='TRPO',
                     help='select one of algorithms among Vanilla_PG, NPG, TPRO')
 parser.add_argument('--env', type=str, default="Walker2d-v2",
                     help='name of Mujoco environement')

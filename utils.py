@@ -49,12 +49,12 @@ def update_model(model, new_params):
         index += params_length
 
 
-def kl_divergence(actor, states):
-    mu, std, logstd = actor(torch.Tensor(states))
-
-    mu_old = torch.Tensor(mu.data).detach()
-    std_old = torch.Tensor(std.data).detach()
-    logstd_old = torch.Tensor(logstd.data).detach()
+def kl_divergence(new_actor, old_actor, states):
+    mu, std, logstd = new_actor(torch.Tensor(states))
+    mu_old, std_old, logstd_old = old_actor(torch.Tensor(states))
+    mu_old = mu_old.detach()
+    std_old = std_old.detach()
+    logstd_old = logstd_old.detach()
 
     # kl divergence between old policy and new policy : D( pi_old || pi_new )
     # pi_old -> mu0, logstd0, std0 / pi_new -> mu, logstd, std
