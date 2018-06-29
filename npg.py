@@ -3,43 +3,32 @@ from utils import *
 from hparams import HyperParams as hp
 
 
-def get_gae(rewards, masks, values):
+def get_returns(rewards, masks):
     rewards = torch.Tensor(rewards)
     masks = torch.Tensor(masks)
     returns = torch.zeros_like(rewards)
-    tderror = torch.zeros_like(rewards)
-    advants = torch.zeros_like(rewards)
 
     running_returns = 0
-    previous_value = 0
-    running_advants = 0
 
     for t in reversed(range(0, len(rewards))):
         running_returns = rewards[t] + hp.gamma * running_returns * masks[t]
-        running_tderror = rewards[t] + hp.gamma * previous_value * masks[t] - \
-                    values.data[t]
-        running_advants = running_tderror + hp.gamma * hp.lamda * \
-                          running_advants * masks[t]
-
         returns[t] = running_returns
-        previous_value = values.data[t]
-        advants[t] = running_advants
 
-    advants = (advants - advants.mean()) / advants.std()
-    return returns, tderror, advants
+    returns = (returns - returns.mean()) / returns.std()
+    return returns
 
 
-def surrogate_loss(actor, advants, states, old_policy, actions):
+def get_loss(actor, returns, states, actions):
     mu, std, logstd = actor(torch.Tensor(states))
-    new_policy = log_density(torch.Tensor(actions), mu, std, logstd)
-    advants = advants.unsqueeze(1)
+    log_policy = log_density(torch.Tensor(actions), mu, std, logstd)
+    returns = returns.unsqueeze(1)
 
-    surrogate = advants * torch.exp(new_policy - old_policy)
-    surrogate = surrogate.mean()
-    return surrogate
+    objective = returns * log_policy
+    objective = objective.mean()
+    return - objective
 
 
-def train_critic(critic, states, returns, advants, critic_optim):
+def train_critic(critic, states, returns, critic_optim):
     criterion = torch.nn.MSELoss()
     n = len(states)
     arr = np.arange(n)
@@ -51,11 +40,10 @@ def train_critic(critic, states, returns, advants, critic_optim):
             batch_index = arr[hp.batch_size * i: hp.batch_size * (i + 1)]
             batch_index = torch.LongTensor(batch_index)
             inputs = torch.Tensor(states)[batch_index]
-            target1 = returns.unsqueeze(1)[batch_index]
-            target2 = advants.unsqueeze(1)[batch_index]
+            target = returns.unsqueeze(1)[batch_index]
 
             values = critic(inputs)
-            loss = criterion(values, target1 + target2)
+            loss = criterion(values, target)
             critic_optim.zero_grad()
             loss.backward()
             critic_optim.step()
@@ -100,22 +88,18 @@ def train_model(actor, critic, memory, actor_optim, critic_optim):
     actions = list(memory[:, 1])
     rewards = list(memory[:, 2])
     masks = list(memory[:, 3])
-    values = critic(torch.Tensor(states))
 
     # ----------------------------
-    # step 1: get returns and GAEs
-    returns, tderror, advants = get_gae(rewards, masks, values)
+    # step 1: get returns
+    returns = get_returns(rewards, masks)
 
     # ----------------------------
     # step 2: train critic several steps with respect to returns
-    train_critic(critic, states, returns, advants, critic_optim)
+    train_critic(critic, states, returns, critic_optim)
 
     # ----------------------------
     # step 3: get gradient of loss and hessian of kl
-    mu, std, logstd = actor(torch.Tensor(states))
-    old_policy = log_density(torch.Tensor(actions), mu, std, logstd)
-
-    loss = surrogate_loss(actor, advants, states, old_policy.detach(), actions)
+    loss = get_loss(actor, returns, states, actions)
     loss_grad = torch.autograd.grad(loss, actor.parameters())
     loss_grad = flat_grad(loss_grad)
     step_dir = conjugate_gradient(actor, states, loss_grad.data, nsteps=10)
