@@ -8,7 +8,6 @@ def get_gae(rewards, masks, values):
     rewards = torch.Tensor(rewards)
     masks = torch.Tensor(masks)
     returns = torch.zeros_like(rewards)
-    tderror = torch.zeros_like(rewards)
     advants = torch.zeros_like(rewards)
 
     running_returns = 0
@@ -27,7 +26,7 @@ def get_gae(rewards, masks, values):
         advants[t] = running_advants
 
     advants = (advants - advants.mean()) / advants.std()
-    return returns, tderror, advants
+    return returns, advants
 
 
 def surrogate_loss(actor, advants, states, old_policy, actions):
@@ -107,7 +106,7 @@ def train_model(actor, critic, memory, actor_optim, critic_optim):
 
     # ----------------------------
     # step 1: get returns and GAEs
-    returns, tderror, advants = get_gae(rewards, masks, values)
+    returns, advants = get_gae(rewards, masks, values)
 
     # ----------------------------
     # step 2: train critic several steps with respect to returns
