@@ -1,5 +1,5 @@
 # pytorch-trpo
-PyTorch implementation of Trust Region Policy Optimization
+PyTorch implementation of Vanilla Policy Gradient, Truncated Natural Policy Gradient, Trust Region Policy Optimization
 
 # Train
 * **algorithm**: PG, NPG, TRPO
@@ -7,3 +7,8 @@ PyTorch implementation of Trust Region Policy Optimization
 ~~~
 python train.py --algorithm "algorithm name" --env "environment name"
 ~~~
+
+# Reference
+This code is modified version of codes
+* [OpenAI Baseline](https://github.com/openai/baselines/tree/master/baselines/trpo_mpi)
+* [Pytorch implemetation of TRPO](https://github.com/ikostrikov/pytorch-trpo)
