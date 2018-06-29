@@ -25,7 +25,7 @@ def get_loss(actor, returns, states, actions):
 
     objective = returns * log_policy
     objective = objective.mean()
-    return - objective
+    return objective
 
 
 def train_critic(critic, states, returns, critic_optim):
@@ -51,7 +51,7 @@ def train_critic(critic, states, returns, critic_optim):
 
 def fisher_vector_product(actor, states, p):
     p.detach()
-    kl = kl_divergence(actor, states)
+    kl = kl_divergence(new_actor=actor, old_actor=actor, states=states)
     kl = kl.mean()
     kl_grad = torch.autograd.grad(kl, actor.parameters(), create_graph=True)
     kl_grad = flat_grad(kl_grad)  # check kl_grad == 0

@@ -87,7 +87,6 @@ def train_model(actor, critic, memory, actor_optim, critic_optim):
 
             actor_optim.zero_grad()
             actor_loss.backward()
-            torch.nn.utils.clip_grad_norm(actor.parameters(), 40)
             actor_optim.step()
 
 

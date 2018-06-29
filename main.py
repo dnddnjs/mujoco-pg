@@ -11,8 +11,8 @@ from hparams import HyperParams as hp
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--algorithm', type=str, default='TRPO',
-                    help='select one of algorithms among Vanilla_PG, NPG, TPRO')
+parser.add_argument('--algorithm', type=str, default='PPO',
+                    help='select one of algorithms among Vanilla_PG, NPG, TPRO, PPO')
 parser.add_argument('--env', type=str, default="Hopper-v2",
                     help='name of Mujoco environement')
 parser.add_argument('--render', default=False)
@@ -24,6 +24,8 @@ elif args.algorithm == "NPG":
     from npg import train_model
 elif args.algorithm == "TRPO":
     from trpo import train_model
+elif args.algorithm == "PPO":
+    from ppo import train_model
 
 
 if __name__=="__main__":
@@ -55,14 +57,14 @@ if __name__=="__main__":
 
         steps = 0
         scores = []
-        while steps < 10000:
+        while steps < 2048:
             episodes += 1
             state = env.reset()
             state = running_state(state)
             score = 0
             for _ in range(10000):
-                # if episodes % 30 == 0:
-                #     env.render()
+                if episodes % 50 == 0:
+                    env.render()
 
                 steps += 1
                 mu, std, _ = actor(torch.Tensor(state).unsqueeze(0))
