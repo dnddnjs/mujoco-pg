@@ -76,6 +76,8 @@ def fisher_vector_product(actor, states, p):
     return kl_hessian_p + 0.1 * p
 
 
+# from openai baseline code
+# https://github.com/openai/baselines/blob/master/baselines/common/cg.py
 def conjugate_gradient(actor, states, b, nsteps, residual_tol=1e-10):
     x = torch.zeros(b.size())
     r = b.clone()
