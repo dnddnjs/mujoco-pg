@@ -31,7 +31,6 @@ def get_gae(rewards, masks, values):
 def surrogate_loss(actor, advants, states, old_policy, actions, index):
     mu, std, logstd = actor(torch.Tensor(states))
     new_policy = log_density(actions, mu, std, logstd)
-    advants = advants.unsqueeze(1)
     old_policy = old_policy[index]
 
     ratio = torch.exp(new_policy - old_policy)
@@ -75,7 +74,7 @@ def train_model(actor, critic, memory, actor_optim, critic_optim):
                                          batch_index)
 
             values = critic(inputs)
-            critic_loss = criterion(values, returns_samples + advants_samples)
+            critic_loss = criterion(values, returns_samples)
             critic_optim.zero_grad()
             critic_loss.backward()
             critic_optim.step()
@@ -88,6 +87,7 @@ def train_model(actor, critic, memory, actor_optim, critic_optim):
 
             actor_optim.zero_grad()
             actor_loss.backward()
+            torch.nn.utils.clip_grad_norm(actor.parameters(), 40)
             actor_optim.step()
 
 
